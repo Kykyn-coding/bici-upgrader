@@ -2,6 +2,8 @@
 
 import sys
 import math
+import json
+import os
 
 import pygame
 
@@ -20,6 +22,14 @@ MUTED = (155, 168, 164)
 ACCENT = (238, 119, 74)
 GREEN = (151, 204, 139)
 RED = (222, 105, 94)
+
+LOCATIONS = (
+    {"name": "Půda u babičky", "cost": 0, "multiplier": 1.0},
+    {"name": "Park", "cost": 250, "multiplier": 1.25},
+    {"name": "Herna / pokoj", "cost": 750, "multiplier": 1.50},
+    {"name": "Staveniště", "cost": 2000, "multiplier": 2.00},
+    {"name": "Dům boháče", "cost": 5000, "multiplier": 3.00},
+)
 
 
 class Drum:
@@ -130,6 +140,8 @@ class Shop:
         self.upgrade_buttons = {}
         self.speed_upgrade_buttons = {}
         self.concert_button = pygame.Rect(882, 622, 300, 58)
+        self.location_button = pygame.Rect(58, 126, 750, 50)
+        self.location_upgrade_button = pygame.Rect(604, 133, 194, 36)
         self.concert_cost = 40
         self.concert_duration = 10.0
         self.concert_time_left = 0.0
@@ -141,6 +153,7 @@ class Shop:
             return
         game.money -= drum.upgrade_cost
         drum.upgrade()
+        game.save_game()
         game.notice = f"{drum.name} vylepšen!"
         game.notice_timer = 2.0
 
@@ -155,6 +168,7 @@ class Shop:
             return
         game.money -= drum.speed_upgrade_cost
         drum.upgrade_speed()
+        game.save_game()
         game.notice = f"{drum.name}: cooldown snížen!"
         game.notice_timer = 2.0
 
@@ -167,59 +181,121 @@ class Shop:
             return
         game.money -= self.concert_cost
         self.concert_time_left = self.concert_duration
+        game.save_game()
         game.notice = "Koncert začal: výdělky jsou 2x!"
         game.notice_timer = 2.0
+
+    def buy_location(self, game):
+        if game.location_level >= len(LOCATIONS) - 1:
+            game.notice = "Všechna místa jsou už odemčená."
+            game.notice_timer = 2.0
+            return
+        next_location = LOCATIONS[game.location_level + 1]
+        if game.money < next_location["cost"]:
+            game.notice = f"Na přesun potřebuješ {next_location['cost']} $."
+            game.notice_timer = 2.0
+            return
+        game.money -= next_location["cost"]
+        game.location_level += 1
+        game.save_game()
+        game.notice = f"Nyní hraješ: {LOCATIONS[game.location_level]['name']}!"
+        game.notice_timer = 2.5
 
     def update(self, dt):
         self.concert_time_left = max(0.0, self.concert_time_left - dt)
 
     def draw(self, surface, font, small_font, game):
+        current_location = LOCATIONS[game.location_level]
+        pygame.draw.rect(surface, (46, 52, 54), self.location_button, border_radius=8)
+        pygame.draw.rect(surface, PANEL_LIGHT, self.location_button, 2, border_radius=8)
+        location_label = font.render(
+            f"MÍSTO: {current_location['name']}",
+            True,
+            TEXT,
+        )
+        surface.blit(location_label, (72, self.location_button.y + 8))
+        multiplier_text = f"Výdělek: {current_location['multiplier']:g}x"
+        surface.blit(
+            small_font.render(multiplier_text, True, GREEN),
+            (72, self.location_button.y + 31),
+        )
+
+        if game.location_level < len(LOCATIONS) - 1:
+            next_location = LOCATIONS[game.location_level + 1]
+            affordable = game.money >= next_location["cost"]
+            next_button = pygame.Rect(604, self.location_button.y + 7, 194, 36)
+            pygame.draw.rect(
+                surface,
+                GREEN if affordable else PANEL_LIGHT,
+                next_button,
+                border_radius=6,
+            )
+            next_label = small_font.render(
+                f"Přesun  {next_location['cost']} $",
+                True,
+                BACKGROUND if affordable else MUTED,
+            )
+            surface.blit(next_label, next_label.get_rect(center=next_button.center))
+            self.location_upgrade_button = next_button
+        else:
+            next_button = pygame.Rect(604, self.location_button.y + 7, 194, 36)
+            pygame.draw.rect(surface, (117, 153, 113), next_button, border_radius=6)
+            next_label = small_font.render("Nejlepší místo", True, TEXT)
+            surface.blit(next_label, next_label.get_rect(center=next_button.center))
+            self.location_upgrade_button = next_button
+
         pygame.draw.rect(surface, PANEL, (852, 126, 332, 610), border_radius=8)
         surface.blit(font.render("DÍLNA", True, TEXT), (882, 150))
         surface.blit(small_font.render("Vylepšení zvýší odměnu za každý úder.", True, MUTED), (882, 181))
-        surface.blit(small_font.render("Klávesy 1–3 | koncert C", True, MUTED), (882, 202))
-        surface.blit(small_font.render("Zrychlení: F1–F3", True, MUTED), (882, 215))
+        pygame.draw.line(surface, PANEL_LIGHT, (882, 214), (1182, 214), 1)
 
         self.upgrade_buttons.clear()
         self.speed_upgrade_buttons.clear()
         for index, drum in enumerate(self.drums):
-            y = 238 + index * 112
-            button = pygame.Rect(882, y + 51, 300, 42)
-            self.upgrade_buttons[drum] = button
-            pygame.draw.line(surface, PANEL_LIGHT, (882, y + 37), (1182, y + 37), 1)
-            surface.blit(font.render(f"{drum.name}  |  úroveň {drum.level}", True, TEXT), (882, y))
+            y = 226 + index * 112
+            card = pygame.Rect(872, y, 320, 104)
+            pygame.draw.rect(surface, PANEL_LIGHT, card, border_radius=8)
+
+            name_label = font.render(drum.name, True, TEXT)
+            surface.blit(name_label, (882, y + 8))
+            level_text = f"Úroveň {drum.level}"
+            level_label = small_font.render(level_text, True, MUTED)
+            level_badge = pygame.Rect(1082, y + 7, 100, 24)
+            pygame.draw.rect(surface, BACKGROUND, level_badge, border_radius=12)
+            surface.blit(level_label, level_label.get_rect(center=level_badge.center))
+
+            income_text = f"+{drum.income} $ / úder"
             cooldown_text = "bez pauzy" if drum.cooldown == 0 else f"{drum.cooldown:.2f} s pauza"
-            surface.blit(
-                small_font.render(
-                    f"{drum.income} $ za úder  |  {cooldown_text}",
-                    True,
-                    GREEN,
-                ),
-                (882, y + 27),
-            )
+            income_label = small_font.render(income_text, True, GREEN)
+            cooldown_label = small_font.render(cooldown_text, True, MUTED)
+            surface.blit(income_label, (882, y + 35))
+            surface.blit(cooldown_label, cooldown_label.get_rect(right=1182, y=y + 35))
+
+            button = pygame.Rect(882, y + 58, 148, 36)
+            self.upgrade_buttons[drum] = button
             affordable = game.money >= drum.upgrade_cost
             button_color = GREEN if affordable else PANEL_LIGHT
             pygame.draw.rect(surface, button_color, button, border_radius=5)
             label_color = BACKGROUND if affordable else MUTED
             label = small_font.render(
-                f"{index + 1}  Lepší {drum.name}  -  {drum.upgrade_cost} $",
+                f"{index + 1}  Síla  {drum.upgrade_cost} $",
                 True,
                 label_color,
             )
             surface.blit(label, label.get_rect(center=button.center))
 
-            speed_button = pygame.Rect(882, y + 97, 300, 34)
+            speed_button = pygame.Rect(1034, y + 58, 148, 36)
             self.speed_upgrade_buttons[drum] = speed_button
             maxed = drum.speed_level >= drum.max_speed_level
             affordable = game.money >= drum.speed_upgrade_cost
             if maxed:
                 speed_color = (117, 153, 113)
-                speed_text = f"F{index + 1}  Maximální rychlost"
+                speed_text = f"F{index + 1}  Rychlost MAX"
             else:
                 speed_color = ACCENT if affordable else PANEL_LIGHT
                 speed_text = (
                     f"F{index + 1}  Rychlost {drum.speed_level}/{drum.max_speed_level}"
-                    f"  -  {drum.speed_upgrade_cost} $"
+                    f"  •  {drum.speed_upgrade_cost} $"
                 )
             pygame.draw.rect(surface, speed_color, speed_button, border_radius=5)
             speed_label = small_font.render(
@@ -267,6 +343,7 @@ class GameManager:
         self.running = True
         self.notice = "Zahraj na bici a vydelavej!"
         self.notice_timer = 3.0
+        self.location_level = 0
 
         self.drums = [
             Drum("Snare", pygame.K_j, "J", 2, 30, (198, 104, 76), (140, 315, 180, 82), 0.55),
@@ -274,11 +351,100 @@ class GameManager:
             Drum("Činel", pygame.K_k, "K", 2, 35, (201, 168, 82), (575, 275, 205, 62), 0.65),
         ]
         self.shop = Shop(self.drums)
+        self.save_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "drum_tycoon_save.json",
+        )
+        self.load_game()
+        if self.fullscreen:
+            self.set_fullscreen()
+        elif self.current_resolution != (WIDTH, HEIGHT):
+            self.set_resolution(self.current_resolution)
+
+    def save_game(self):
+        data = {
+            "money": max(0, int(self.money)),
+            "drums": {
+                drum.name: {
+                    "level": drum.level,
+                    "income": drum.income,
+                    "upgrade_cost": drum.upgrade_cost,
+                    "speed_level": drum.speed_level,
+                    "speed_upgrade_cost": drum.speed_upgrade_cost,
+                }
+                for drum in self.drums
+            },
+            "fullscreen": self.fullscreen,
+            "resolution": list(self.current_resolution),
+            "location_level": self.location_level,
+        }
+        try:
+            with open(self.save_path, "w", encoding="utf-8") as save_file:
+                json.dump(data, save_file, ensure_ascii=False, indent=2)
+        except OSError as error:
+            self.notice = f"Uložení selhalo: {error}"
+            self.notice_timer = 3.0
+
+    def load_game(self):
+        if not os.path.exists(self.save_path):
+            return
+        try:
+            with open(self.save_path, "r", encoding="utf-8") as save_file:
+                data = json.load(save_file)
+        except (OSError, json.JSONDecodeError):
+            return
+
+        self.money = max(0, int(data.get("money", 0)))
+        drum_data = data.get("drums", {})
+        cooldown_multipliers = (1.0, 0.75, 0.50, 0.25, 0.10, 0.0)
+
+        for drum in self.drums:
+            saved = drum_data.get(drum.name)
+            if not isinstance(saved, dict):
+                continue
+
+            drum.level = max(0, int(saved.get("level", 0)))
+            drum.income = max(drum.base_income, int(saved.get("income", drum.income)))
+            drum.upgrade_cost = max(
+                1,
+                int(saved.get("upgrade_cost", drum.upgrade_cost)),
+            )
+
+            drum.speed_level = min(
+                drum.max_speed_level,
+                max(0, int(saved.get("speed_level", 0))),
+            )
+            drum.cooldown = round(
+                drum.base_cooldown * cooldown_multipliers[drum.speed_level],
+                2,
+            )
+            drum.cooldown_left = 0.0
+            drum.speed_upgrade_cost = max(
+                1,
+                int(saved.get(
+                    "speed_upgrade_cost",
+                    drum.speed_upgrade_cost,
+                )),
+            )
+
+        resolution = data.get("resolution")
+        if (
+            isinstance(resolution, list)
+            and len(resolution) == 2
+            and all(isinstance(value, int) and value > 0 for value in resolution)
+        ):
+            self.current_resolution = tuple(resolution)
+        self.fullscreen = bool(data.get("fullscreen", False))
+        self.location_level = min(
+            len(LOCATIONS) - 1,
+            max(0, int(data.get("location_level", 0))),
+        )
 
     def set_resolution(self, resolution):
         self.fullscreen = False
         self.current_resolution = resolution
         self.display = pygame.display.set_mode(resolution)
+        self.save_game()
 
     def set_fullscreen(self):
         info = pygame.display.Info()
@@ -286,6 +452,7 @@ class GameManager:
         self.fullscreen = True
         self.current_resolution = resolution
         self.display = pygame.display.set_mode(resolution, pygame.FULLSCREEN)
+        self.save_game()
 
     def logical_mouse_position(self, position):
         display_width, display_height = self.display.get_size()
@@ -351,12 +518,15 @@ class GameManager:
         self.screen.blit(close_label, close_label.get_rect(center=close_button.center))
 
     def handle_hit(self, drum):
-        multiplier = 2 if self.shop.concert_time_left > 0 else 1
+        location_multiplier = LOCATIONS[self.location_level]["multiplier"]
+        concert_multiplier = 2 if self.shop.concert_time_left > 0 else 1
+        multiplier = location_multiplier * concert_multiplier
         income = drum.hit()
         if income is None:
             return
-        earned = income * multiplier
+        earned = round(income * multiplier)
         self.money += earned
+        self.save_game()
         self.notice = f"{drum.name}: +{earned} $"
         self.notice_timer = 0.8
 
@@ -413,6 +583,9 @@ class GameManager:
             if self.settings_button.collidepoint(position):
                 self.settings_open = True
                 return
+            if self.shop.location_upgrade_button.collidepoint(position):
+                self.shop.buy_location(self)
+                return
             for drum, button in self.shop.upgrade_buttons.items():
                 if button.collidepoint(position):
                     self.shop.buy_upgrade(drum, self)
@@ -434,6 +607,50 @@ class GameManager:
         for drum in self.drums:
             drum.update(dt)
         self.notice_timer = max(0.0, self.notice_timer - dt)
+
+    def draw_location_background(self):
+        location_level = self.location_level
+        ground_y = 548
+
+        if location_level == 0:
+            pygame.draw.rect(self.screen, (89, 72, 57), (56, 176, 750, 372))
+            pygame.draw.rect(self.screen, (55, 49, 43), (56, 176, 750, 22))
+            for x in range(80, 780, 72):
+                pygame.draw.line(
+                    self.screen,
+                    (105, 91, 68),
+                    (x, 198),
+                    (x - 20, ground_y),
+                    4,
+                )
+            pygame.draw.rect(self.screen, (72, 65, 53), (88, 230, 150, 140))
+            for x in (110, 220):
+                pygame.draw.rect(self.screen, (48, 44, 38), (x, 255, 22, 115))
+        elif location_level == 1:
+            pygame.draw.rect(self.screen, (97, 139, 104), (56, 176, 750, 372))
+            pygame.draw.ellipse(self.screen, (70, 112, 75), (70, 210, 230, 250))
+            pygame.draw.ellipse(self.screen, (78, 122, 82), (550, 220, 230, 240))
+            pygame.draw.circle(self.screen, (255, 220, 120), (720, 210), 34)
+        elif location_level == 2:
+            pygame.draw.rect(self.screen, (84, 79, 68), (56, 176, 750, 372))
+            pygame.draw.rect(self.screen, (134, 126, 108), (56, 176, 750, 45))
+            pygame.draw.rect(self.screen, (66, 72, 75), (100, 245, 170, 120))
+            pygame.draw.rect(self.screen, (55, 60, 62), (618, 245, 150, 120))
+        elif location_level == 3:
+            pygame.draw.rect(self.screen, (115, 105, 89), (56, 176, 750, 372))
+            pygame.draw.rect(self.screen, (82, 75, 65), (56, 176, 750, 50))
+            for x in (130, 250, 370, 490, 610, 730):
+                pygame.draw.line(self.screen, (224, 156, 82), (x, 220), (x, 548), 12)
+        else:
+            pygame.draw.rect(self.screen, (69, 82, 96), (56, 176, 750, 372))
+            pygame.draw.rect(self.screen, (35, 42, 49), (56, 176, 750, 48))
+            pygame.draw.polygon(
+                self.screen,
+                (128, 138, 143),
+                ((70, 548), (90, 250), (772, 250), (792, 548)),
+            )
+            for x in (140, 260, 380, 500, 620, 740):
+                pygame.draw.rect(self.screen, (242, 202, 105), (x, 300, 42, 72))
 
     def draw_concert_crowd(self):
         if self.shop.concert_time_left <= 0:
@@ -525,6 +742,7 @@ class GameManager:
         self.screen.fill(BACKGROUND)
         pygame.draw.rect(self.screen, PANEL, (36, 126, 790, 610), border_radius=8)
         pygame.draw.rect(self.screen, PANEL_LIGHT, (56, 548, 750, 2))
+        self.draw_location_background()
         self.draw_concert_crowd()
         self.screen.blit(self.title_font.render("DRUM TYCOON", True, TEXT), (42, 34))
         self.screen.blit(self.small_font.render("Zahraj. Vylepšuj. Vyraz na koncert.", True, MUTED), (46, 83))
@@ -586,6 +804,7 @@ class GameManager:
                 self.handle_event(event)
             self.update(dt)
             self.draw()
+        self.save_game()
         pygame.quit()
         sys.exit()
 
