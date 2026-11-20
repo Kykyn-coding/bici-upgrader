@@ -1,5 +1,5 @@
 {
-  "money": 107,
+  "money": 160,
   "drums": {
     "Snare": {
       "level": 0,
@@ -28,5 +28,5 @@
     1220,
     780
   ],
-  "location_level": 0
+  "location_level": 1
 }

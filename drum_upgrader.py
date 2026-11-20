@@ -109,18 +109,76 @@ class Drum:
             pygame.draw.circle(surface, (224, 222, 204), center, 43, 3)
             pygame.draw.circle(surface, (34, 43, 47), center, 7)
         elif self.name == "Snare":
-            pygame.draw.ellipse(surface, shadow, self.hit_area.move(0, 10))
-            pygame.draw.ellipse(surface, color, self.hit_area)
-            pygame.draw.ellipse(surface, (235, 231, 211), self.hit_area, 5)
-            pygame.draw.ellipse(surface, (235, 231, 211), self.hit_area.inflate(-24, -18), 2)
+            rect = self.hit_area
+            cx, cy = rect.center
+            pygame.draw.ellipse(surface, (10, 14, 16), rect.move(0, 13).inflate(18, 8))
+
+            shell = rect.inflate(12, 20)
+            pygame.draw.ellipse(surface, (24, 29, 31), shell.move(0, 28))
+            pygame.draw.ellipse(surface, color, shell)
+            pygame.draw.ellipse(surface, (238, 232, 210), shell, 5)
+
+            pygame.draw.ellipse(surface, shadow, rect.move(0, 8).inflate(4, 4))
+            pygame.draw.ellipse(surface, (226, 220, 196), rect.inflate(4, 2))
+            pygame.draw.ellipse(surface, color, rect)
+            pygame.draw.ellipse(surface, (255, 248, 220), rect.inflate(-12, -10), 3)
+
+            for angle in range(0, 360, 45):
+                lx = int(cx + 78 * pygame.math.Vector2(1, 0).rotate(angle).x)
+                ly = int(cy + 35 * pygame.math.Vector2(1, 0).rotate(angle).y)
+                pygame.draw.circle(surface, (235, 231, 211), (lx, ly), 5)
+                pygame.draw.circle(surface, (55, 62, 62), (lx, ly), 5, 2)
+
+            pygame.draw.line(surface, (190, 196, 188), (cx - 55, cy + 48),
+                             (cx - 75, cy + 96), 7)
+            pygame.draw.line(surface, (190, 196, 188), (cx + 55, cy + 48),
+                             (cx + 75, cy + 96), 7)
+            pygame.draw.line(surface, (190, 196, 188), (cx - 75, cy + 96),
+                             (cx + 75, cy + 96), 7)
+
+            highlight = rect.inflate(-20, -24)
+            pygame.draw.arc(surface, (255, 238, 190), highlight,
+                            math.radians(200), math.radians(340), 4)
+            pygame.draw.circle(surface, (255, 246, 210), (cx - 48, cy - 9), 4)
         else:
             center_x, center_y = self.hit_area.center
-            pygame.draw.line(surface, (180, 190, 185), (center_x, center_y),
-                             (center_x, center_y + 110), 7)
-            pygame.draw.ellipse(surface, shadow, self.hit_area.move(0, 10))
-            pygame.draw.ellipse(surface, color, self.hit_area)
-            pygame.draw.ellipse(surface, (245, 204, 113), self.hit_area, 4)
-            pygame.draw.circle(surface, (255, 229, 160), (center_x, center_y), 7)
+            pygame.draw.ellipse(
+                surface,
+                (8, 12, 14),
+                self.hit_area.move(0, 14).inflate(18, 12),
+            )
+
+            pygame.draw.line(surface, (56, 62, 63), (center_x, center_y + 18),
+                             (center_x, center_y + 128), 9)
+            pygame.draw.line(surface, (174, 184, 178), (center_x - 42, center_y + 128),
+                             (center_x + 42, center_y + 128), 8)
+            pygame.draw.line(surface, (174, 184, 178), (center_x - 42, center_y + 128),
+                             (center_x - 18, center_y + 82), 6)
+            pygame.draw.line(surface, (174, 184, 178), (center_x + 42, center_y + 128),
+                             (center_x + 18, center_y + 82), 6)
+
+            pygame.draw.line(surface, (220, 220, 197), (center_x, center_y + 12),
+                             (center_x, center_y - 18), 5)
+            pygame.draw.ellipse(surface, shadow, self.hit_area.move(0, 9).inflate(12, 8))
+            pygame.draw.ellipse(surface, color, self.hit_area.inflate(8, 4))
+            pygame.draw.ellipse(surface, (255, 226, 139), self.hit_area.inflate(8, 4), 5)
+            pygame.draw.ellipse(surface, (255, 239, 166),
+                                self.hit_area.inflate(-18, -16), 3)
+            pygame.draw.circle(surface, (255, 244, 186), (center_x, center_y), 9)
+            pygame.draw.circle(surface, (92, 76, 48), (center_x, center_y), 9, 3)
+
+            pygame.draw.arc(surface, (255, 250, 205),
+                            self.hit_area.inflate(-12, -14),
+                            math.radians(175),
+                            math.radians(315),
+                            3)
+
+        if active:
+            ring_color = (255, 215, 125)
+            ring_radius = 58
+            pygame.draw.circle(surface, ring_color,
+                               (self.hit_area.centerx, self.hit_area.centery),
+                               ring_radius, 3)
 
         label = font.render(self.name, True, TEXT)
         if ready:
