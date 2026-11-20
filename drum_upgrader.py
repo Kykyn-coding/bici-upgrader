@@ -45,6 +45,8 @@ class Drum:
         color,
         hit_area,
         cooldown=0.99,
+        purchase_cost=0,
+        owned=True,
     ):
         self.name = name
         self.key = key
@@ -62,6 +64,8 @@ class Drum:
         self.speed_level = 0
         self.speed_upgrade_cost = round(upgrade_cost * 1.8)
         self.max_speed_level = 5
+        self.purchase_cost = purchase_cost
+        self.owned = owned
 
     def hit(self):
         if self.cooldown_left > 0:
@@ -153,6 +157,29 @@ class Drum:
             pygame.draw.arc(surface, (255, 238, 190), highlight,
                             math.radians(200), math.radians(340), 4)
             pygame.draw.circle(surface, (255, 246, 210), (cx - 48, cy - 9), 4)
+        elif self.name == "Tom":
+            rect = self.hit_area
+            cx, cy = rect.center
+            pygame.draw.ellipse(surface, (10, 14, 16), rect.move(0, 12).inflate(12, 8))
+            pygame.draw.rect(surface, (52, 58, 60), (cx - 58, cy + 12, 116, 70), border_radius=12)
+            pygame.draw.ellipse(surface, shadow, rect.move(0, 7).inflate(8, 4))
+            pygame.draw.ellipse(surface, rim_color if 'rim_color' in locals() else color, rect.inflate(6, 2), level_ring_width)
+            pygame.draw.ellipse(surface, color, rect)
+            pygame.draw.ellipse(surface, (255, 224, 190), rect.inflate(-18, -14), 3)
+            pygame.draw.line(surface, (185, 194, 188), (cx - 42, cy + 65), (cx - 58, cy + 112), 7)
+            pygame.draw.line(surface, (185, 194, 188), (cx + 42, cy + 65), (cx + 58, cy + 112), 7)
+        elif self.name in ("Hi-Hat", "Crash"):
+            center_x, center_y = self.hit_area.center
+            small = self.name == "Hi-Hat"
+            width = 150 if small else 210
+            top_rect = pygame.Rect(center_x - width // 2, center_y - 18, width, 36)
+            bottom_rect = pygame.Rect(center_x - width // 2, center_y + 8, width, 28)
+            cymbal_color = (220, 190, 106) if visual_tier < 3 else (255, 220, 145)
+            pygame.draw.line(surface, (150, 160, 154), (center_x, center_y - 18), (center_x, center_y + 128), 7)
+            pygame.draw.ellipse(surface, (8, 12, 14), bottom_rect.move(0, 8))
+            pygame.draw.ellipse(surface, cymbal_color, bottom_rect, level_ring_width)
+            pygame.draw.ellipse(surface, cymbal_color, top_rect, level_ring_width)
+            pygame.draw.circle(surface, (255, 238, 170), (center_x, center_y), 7)
         else:
             center_x, center_y = self.hit_area.center
             cymbal_colors = (
@@ -249,12 +276,26 @@ class Shop:
         self.drums = drums
         self.upgrade_buttons = {}
         self.speed_upgrade_buttons = {}
-        self.concert_button = pygame.Rect(882, 622, 300, 58)
+        self.concert_button = pygame.Rect(882, 694, 300, 38)
         self.location_button = pygame.Rect(58, 126, 750, 50)
         self.location_upgrade_button = pygame.Rect(604, 133, 194, 36)
         self.concert_cost = 40
         self.concert_duration = 10.0
         self.concert_time_left = 0.0
+        self.instrument_buttons = {}
+
+    def buy_instrument(self, drum, game):
+        if drum.owned:
+            return
+        if game.money < drum.purchase_cost:
+            game.notice = f"Na nákup {drum.name} potřebuješ {drum.purchase_cost} $."
+            game.notice_timer = 2.0
+            return
+        game.money -= drum.purchase_cost
+        drum.owned = True
+        game.save_game()
+        game.notice = f"{drum.name} byl přidán do sestavy!"
+        game.notice_timer = 2.5
 
     def buy_upgrade(self, drum, game):
         if game.money < drum.upgrade_cost:
@@ -361,16 +402,21 @@ class Shop:
 
         self.upgrade_buttons.clear()
         self.speed_upgrade_buttons.clear()
+        self.instrument_buttons.clear()
+        owned_index = 0
         for index, drum in enumerate(self.drums):
-            y = 226 + index * 112
-            card = pygame.Rect(872, y, 320, 104)
+            if not drum.owned:
+                continue
+            y = 218 + owned_index * 76
+            owned_index += 1
+            card = pygame.Rect(872, y, 320, 70)
             pygame.draw.rect(surface, PANEL_LIGHT, card, border_radius=8)
 
             name_label = font.render(drum.name, True, TEXT)
-            surface.blit(name_label, (882, y + 8))
+            surface.blit(name_label, (882, y + 4))
             level_text = f"Úroveň {drum.level}"
             level_label = small_font.render(level_text, True, MUTED)
-            level_badge = pygame.Rect(1082, y + 7, 100, 24)
+            level_badge = pygame.Rect(1082, y + 3, 100, 22)
             pygame.draw.rect(surface, BACKGROUND, level_badge, border_radius=12)
             surface.blit(level_label, level_label.get_rect(center=level_badge.center))
 
@@ -378,10 +424,10 @@ class Shop:
             cooldown_text = "bez pauzy" if drum.cooldown == 0 else f"{drum.cooldown:.2f} s pauza"
             income_label = small_font.render(income_text, True, GREEN)
             cooldown_label = small_font.render(cooldown_text, True, MUTED)
-            surface.blit(income_label, (882, y + 35))
-            surface.blit(cooldown_label, cooldown_label.get_rect(right=1182, y=y + 35))
+            surface.blit(income_label, (882, y + 27))
+            surface.blit(cooldown_label, cooldown_label.get_rect(right=1182, y=y + 27))
 
-            button = pygame.Rect(882, y + 58, 148, 36)
+            button = pygame.Rect(882, y + 42, 148, 24)
             self.upgrade_buttons[drum] = button
             affordable = game.money >= drum.upgrade_cost
             button_color = GREEN if affordable else PANEL_LIGHT
@@ -394,7 +440,7 @@ class Shop:
             )
             surface.blit(label, label.get_rect(center=button.center))
 
-            speed_button = pygame.Rect(1034, y + 58, 148, 36)
+            speed_button = pygame.Rect(1034, y + 42, 148, 24)
             self.speed_upgrade_buttons[drum] = speed_button
             maxed = drum.speed_level >= drum.max_speed_level
             affordable = game.money >= drum.speed_upgrade_cost
@@ -414,6 +460,22 @@ class Shop:
                 TEXT if (maxed or affordable) else MUTED,
             )
             surface.blit(speed_label, speed_label.get_rect(center=speed_button.center))
+
+        purchase_y = 218 + owned_index * 76
+        for drum in self.drums:
+            if drum.owned:
+                continue
+            button = pygame.Rect(872, purchase_y, 320, 38)
+            self.instrument_buttons[drum] = button
+            pygame.draw.rect(surface, ACCENT if game.money >= drum.purchase_cost else PANEL_LIGHT,
+                             button, border_radius=6)
+            label = small_font.render(
+                f"Koupit {drum.name}  -  {drum.purchase_cost} $",
+                True,
+                TEXT if game.money >= drum.purchase_cost else MUTED,
+            )
+            surface.blit(label, label.get_rect(center=button.center))
+            purchase_y += 42
 
         active = self.concert_time_left > 0
         concert_color = ACCENT if not active else (117, 153, 113)
@@ -439,6 +501,7 @@ class GameManager:
         self.settings_open = False
         self.settings_buttons = {}
         self.settings_button = pygame.Rect(320, 34, 202, 52)
+        self.keybind_waiting = None
         self.resolution_options = (
             ("1220 x 780", (1220, 780)),
             ("1366 x 768", (1366, 768)),
@@ -459,6 +522,9 @@ class GameManager:
             Drum("Snare", pygame.K_j, "J", 2, 30, (198, 104, 76), (140, 315, 180, 82), 0.55),
             Drum("Kopák", pygame.K_SPACE, "MEZERNÍK", 3, 40, (115, 145, 132), (355, 410, 235, 170), 0.80),
             Drum("Činel", pygame.K_k, "K", 2, 35, (201, 168, 82), (575, 275, 205, 62), 0.65),
+            Drum("Hi-Hat", pygame.K_h, "H", 2, 45, (205, 177, 92), (75, 430, 150, 50), 0.45, 300, False),
+            Drum("Tom", pygame.K_t, "T", 4, 75, (118, 88, 132), (250, 300, 150, 100), 0.60, 500, False),
+            Drum("Crash", pygame.K_l, "L", 5, 100, (215, 190, 92), (620, 210, 210, 50), 0.70, 800, False),
         ]
         self.shop = Shop(self.drums)
         self.save_path = os.path.join(
@@ -481,6 +547,9 @@ class GameManager:
                     "upgrade_cost": drum.upgrade_cost,
                     "speed_level": drum.speed_level,
                     "speed_upgrade_cost": drum.speed_upgrade_cost,
+                    "owned": drum.owned,
+                    "key": drum.key,
+                    "key_label": drum.key_label,
                 }
                 for drum in self.drums
             },
@@ -536,6 +605,13 @@ class GameManager:
                     drum.speed_upgrade_cost,
                 )),
             )
+            drum.owned = bool(saved.get("owned", drum.owned))
+            saved_key = saved.get("key")
+            if isinstance(saved_key, int):
+                drum.key = saved_key
+            saved_key_label = saved.get("key_label")
+            if isinstance(saved_key_label, str) and saved_key_label:
+                drum.key_label = saved_key_label
 
         resolution = data.get("resolution")
         if (
@@ -581,17 +657,17 @@ class GameManager:
         overlay.fill((8, 12, 14, 205))
         self.screen.blit(overlay, (0, 0))
 
-        panel = pygame.Rect(310, 150, 600, 500)
+        panel = pygame.Rect(170, 110, 880, 590)
         pygame.draw.rect(self.screen, PANEL, panel, border_radius=10)
         pygame.draw.rect(self.screen, PANEL_LIGHT, panel, 3, border_radius=10)
         self.screen.blit(
             self.title_font.render("NASTAVENÍ OBRAZU", True, TEXT),
-            (panel.centerx - 155, panel.y + 28),
+            (panel.x + 30, panel.y + 20),
         )
 
         self.settings_buttons.clear()
-        y = panel.y + 95
-        self.settings_buttons["fullscreen"] = pygame.Rect(350, y, 520, 48)
+        y = panel.y + 78
+        self.settings_buttons["fullscreen"] = pygame.Rect(panel.x + 30, y, 390, 44)
 
         mode_text = "FULLSCREEN: ZAPNUTO" if self.fullscreen else "FULLSCREEN: VYPNUTO"
         mode_color = GREEN if self.fullscreen else PANEL_LIGHT
@@ -604,14 +680,14 @@ class GameManager:
         label = self.font.render(mode_text, True, TEXT if self.fullscreen else MUTED)
         self.screen.blit(label, label.get_rect(center=self.settings_buttons["fullscreen"].center))
 
-        y += 64
+        y += 58
         self.screen.blit(
             self.small_font.render("Rozlišení okna:", True, MUTED),
-            (350, y),
+            (panel.x + 30, y),
         )
-        y += 34
+        y += 28
         for label_text, resolution in self.resolution_options:
-            button = pygame.Rect(350, y, 520, 42)
+            button = pygame.Rect(panel.x + 30, y, 390, 38)
             self.settings_buttons[resolution] = button
             selected = not self.fullscreen and self.current_resolution == resolution
             button_color = ACCENT if selected else PANEL_LIGHT
@@ -620,6 +696,34 @@ class GameManager:
             label = self.font.render(label_text, True, text_color)
             self.screen.blit(label, label.get_rect(center=button.center))
             y += 50
+
+        key_x = panel.x + 450
+        key_y = panel.y + 78
+        self.screen.blit(
+            self.small_font.render("KLÁVESY NÁSTROJŮ:", True, MUTED),
+            (key_x, key_y),
+        )
+        key_y += 34
+        for drum in self.drums:
+            if not drum.owned:
+                continue
+            button = pygame.Rect(key_x, key_y, 400, 38)
+            self.settings_buttons[f"bind:{drum.name}"] = button
+            waiting = self.keybind_waiting == drum.name
+            pygame.draw.rect(
+                self.screen,
+                ACCENT if waiting else PANEL_LIGHT,
+                button,
+                border_radius=6,
+            )
+            label_text = (
+                f"Stiskni klávesu..."
+                if waiting
+                else f"{drum.name}:  {drum.key_label}"
+            )
+            label = self.font.render(label_text, True, TEXT)
+            self.screen.blit(label, label.get_rect(center=button.center))
+            key_y += 46
 
         close_button = pygame.Rect(350, panel.bottom - 74, 520, 42)
         self.settings_buttons["close"] = close_button
@@ -644,6 +748,33 @@ class GameManager:
         if event.type == pygame.QUIT:
             self.running = False
         elif event.type == pygame.KEYDOWN and not getattr(event, "repeat", False):
+            if self.settings_open and self.keybind_waiting:
+                drum = next(
+                    (item for item in self.drums if item.name == self.keybind_waiting),
+                    None,
+                )
+                if event.key == pygame.K_ESCAPE:
+                    self.keybind_waiting = None
+                    return
+                if drum:
+                    conflict = next(
+                        (
+                            item for item in self.drums
+                            if item is not drum and item.owned and item.key == event.key
+                        ),
+                        None,
+                    )
+                    if conflict:
+                        self.notice = f"Klávesa je už přiřazená nástroji {conflict.name}."
+                        self.notice_timer = 2.5
+                    else:
+                        drum.key = event.key
+                        drum.key_label = pygame.key.name(event.key).upper()
+                        self.save_game()
+                        self.notice = f"{drum.name}: klávesa {drum.key_label}"
+                        self.notice_timer = 2.0
+                self.keybind_waiting = None
+                return
             if event.key == pygame.K_ESCAPE:
                 if self.settings_open:
                     self.settings_open = False
@@ -669,6 +800,8 @@ class GameManager:
                     self.shop.buy_speed_upgrade(self.drums[index], self)
             else:
                 for drum in self.drums:
+                    if not drum.owned:
+                        continue
                     if event.key == drum.key:
                         self.handle_hit(drum)
                         break
@@ -685,6 +818,12 @@ class GameManager:
                     if isinstance(resolution, tuple) and button.collidepoint(position):
                         self.set_resolution(resolution)
                         return
+                for key, button in self.settings_buttons.items():
+                    if isinstance(key, str) and key.startswith("bind:"):
+                        drum_name = key.split(":", 1)[1]
+                        if button.collidepoint(position):
+                            self.keybind_waiting = drum_name
+                            return
                 if self.settings_buttons.get("close").collidepoint(position):
                     self.settings_open = False
                     return
@@ -696,6 +835,10 @@ class GameManager:
             if self.shop.location_upgrade_button.collidepoint(position):
                 self.shop.buy_location(self)
                 return
+            for drum, button in self.shop.instrument_buttons.items():
+                if button.collidepoint(position):
+                    self.shop.buy_instrument(drum, self)
+                    return
             for drum, button in self.shop.upgrade_buttons.items():
                 if button.collidepoint(position):
                     self.shop.buy_upgrade(drum, self)
@@ -708,6 +851,8 @@ class GameManager:
                 self.shop.start_concert(self)
                 return
             for drum in self.drums:
+                if not drum.owned:
+                    continue
                 if drum.hit_area.collidepoint(position):
                     self.handle_hit(drum)
                     break
@@ -715,7 +860,8 @@ class GameManager:
     def update(self, dt):
         self.shop.update(dt)
         for drum in self.drums:
-            drum.update(dt)
+            if drum.owned:
+                drum.update(dt)
         self.notice_timer = max(0.0, self.notice_timer - dt)
 
     def draw_location_background(self):
@@ -863,7 +1009,8 @@ class GameManager:
                          (WIDTH - balance.get_width() - 42, 82))
 
         for drum in self.drums:
-            drum.draw(self.screen, self.font, self.small_font)
+            if drum.owned:
+                drum.draw(self.screen, self.font, self.small_font)
         self.shop.draw(self.screen, self.font, self.small_font, self)
 
         if self.notice_timer > 0:

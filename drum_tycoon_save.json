@@ -1,26 +1,65 @@
 {
-  "money": 349,
+  "money": 100,
   "drums": {
     "Snare": {
-      "level": 2,
-      "income": 6,
-      "upgrade_cost": 82,
+      "level": 0,
+      "income": 2,
+      "upgrade_cost": 30,
       "speed_level": 0,
-      "speed_upgrade_cost": 54
+      "speed_upgrade_cost": 54,
+      "owned": true,
+      "key": 106,
+      "key_label": "J"
     },
     "Kopák": {
-      "level": 1,
-      "income": 6,
-      "upgrade_cost": 66,
+      "level": 0,
+      "income": 3,
+      "upgrade_cost": 40,
       "speed_level": 0,
-      "speed_upgrade_cost": 72
+      "speed_upgrade_cost": 72,
+      "owned": true,
+      "key": 32,
+      "key_label": "MEZERNÍK"
     },
     "Činel": {
-      "level": 1,
-      "income": 4,
-      "upgrade_cost": 58,
+      "level": 0,
+      "income": 2,
+      "upgrade_cost": 35,
       "speed_level": 0,
-      "speed_upgrade_cost": 63
+      "speed_upgrade_cost": 63,
+      "owned": true,
+      "key": 107,
+      "key_label": "K"
+    },
+    "Hi-Hat": {
+      "level": 0,
+      "income": 2,
+      "upgrade_cost": 45,
+      "speed_level": 0,
+      "speed_upgrade_cost": 81,
+      "owned": true,
+      "key": 104,
+      "key_label": "H"
+    },
+    "Tom": {
+      "level": 0,
+      "income": 4,
+      "upgrade_cost": 75,
+      "speed_level": 0,
+      "speed_upgrade_cost": 135,
+      "owned": false,
+      "key": 116,
+      "key_label": "T"
+    },
+    "Crash": {
+      "level": 0,
+      "income": 5,
+      "upgrade_cost": 100,
+      "speed_level": 0,
+      "speed_upgrade_cost": 180,
+      "owned": false,
+      "key": 108,
+      "key_label": "L"
     }
   },
   "fullscreen": false,
@@ -28,5 +67,5 @@
     1220,
     780
   ],
-  "location_level": 1
+  "location_level": 0
 }
