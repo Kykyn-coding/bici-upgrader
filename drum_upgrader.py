@@ -1,6 +1,7 @@
 """Zaklad hry Drum Tycoon: hrani na bici a vydelavani penez."""
 
 import sys
+import math
 
 import pygame
 
@@ -23,7 +24,17 @@ RED = (222, 105, 94)
 class Drum:
     """Hratelny nastroj, ktery pri uderu vydelava penize."""
 
-    def __init__(self, name, key, key_label, income, upgrade_cost, color, hit_area):
+    def __init__(
+        self,
+        name,
+        key,
+        key_label,
+        income,
+        upgrade_cost,
+        color,
+        hit_area,
+        cooldown=0.99,
+    ):
         self.name = name
         self.key = key
         self.key_label = key_label
@@ -34,9 +45,14 @@ class Drum:
         self.color = color
         self.hit_area = pygame.Rect(hit_area)
         self.flash_timer = 0.0
+        self.cooldown = cooldown
+        self.cooldown_left = 0.0
 
     def hit(self):
+        if self.cooldown_left > 0:
+            return None
         self.flash_timer = 0.16
+        self.cooldown_left = self.cooldown
         # Zvuk lze pozdeji prehrat pres pygame.mixer.Sound.
         return self.income
 
@@ -47,10 +63,14 @@ class Drum:
 
     def update(self, dt):
         self.flash_timer = max(0.0, self.flash_timer - dt)
+        self.cooldown_left = max(0.0, self.cooldown_left - dt)
 
     def draw(self, surface, font, small_font):
         active = self.flash_timer > 0
-        color = (255, 215, 125) if active else self.color
+        ready = self.cooldown_left <= 0
+        color = (255, 215, 125) if active else (
+            self.color if ready else (86, 96, 96)
+        )
         shadow = (12, 17, 20)
 
         if self.name == "Kopák":
@@ -76,7 +96,11 @@ class Drum:
             pygame.draw.circle(surface, (255, 229, 160), (center_x, center_y), 7)
 
         label = font.render(self.name, True, TEXT)
-        key_label = small_font.render(self.key_label, True, MUTED)
+        if ready:
+            key_text = self.key_label
+        else:
+            key_text = f"{self.key_label}  |  {self.cooldown_left:.1f} s"
+        key_label = small_font.render(key_text, True, MUTED)
         surface.blit(label, label.get_rect(center=(self.hit_area.centerx, self.hit_area.bottom + 27)))
         surface.blit(key_label, key_label.get_rect(center=(self.hit_area.centerx, self.hit_area.bottom + 51)))
 
@@ -170,15 +194,18 @@ class GameManager:
         self.notice_timer = 3.0
 
         self.drums = [
-            Drum("Snare", pygame.K_j, "J", 2, 30, (198, 104, 76), (140, 315, 180, 82)),
-            Drum("Kopák", pygame.K_SPACE, "MEZERNÍK", 3, 40, (115, 145, 132), (355, 410, 235, 170)),
-            Drum("Činel", pygame.K_k, "K", 2, 35, (201, 168, 82), (575, 275, 205, 62)),
+            Drum("Snare", pygame.K_j, "J", 2, 30, (198, 104, 76), (140, 315, 180, 82), 0.55),
+            Drum("Kopák", pygame.K_SPACE, "MEZERNÍK", 3, 40, (115, 145, 132), (355, 410, 235, 170), 0.80),
+            Drum("Činel", pygame.K_k, "K", 2, 35, (201, 168, 82), (575, 275, 205, 62), 0.65),
         ]
         self.shop = Shop(self.drums)
 
     def handle_hit(self, drum):
         multiplier = 2 if self.shop.concert_time_left > 0 else 1
-        earned = drum.hit() * multiplier
+        income = drum.hit()
+        if income is None:
+            return
+        earned = income * multiplier
         self.money += earned
         self.notice = f"{drum.name}: +{earned} $"
         self.notice_timer = 0.8
@@ -219,10 +246,97 @@ class GameManager:
             drum.update(dt)
         self.notice_timer = max(0.0, self.notice_timer - dt)
 
+    def draw_concert_crowd(self):
+        if self.shop.concert_time_left <= 0:
+            return
+
+        elapsed = self.shop.concert_duration - self.shop.concert_time_left
+        pulse = int((math.sin(elapsed * 5.0) + 1) * 18)
+        stage_y = 170
+
+        pygame.draw.rect(
+            self.screen,
+            (70, 52, 66),
+            (56, stage_y - 18, 750, 150),
+            border_radius=6,
+        )
+        pygame.draw.rect(
+            self.screen,
+            (238, 119, 74),
+            (56, stage_y - 18, 750, 5),
+        )
+
+        banner = self.title_font.render("KONCERT", True, (255, 215, 125))
+        self.screen.blit(banner, banner.get_rect(center=(431, stage_y + 15)))
+
+        light_colors = [
+            (238, 119, 74),
+            (151, 204, 139),
+            (201, 168, 82),
+        ]
+        for index, x in enumerate((120, 431, 742)):
+            color = tuple(min(255, channel + pulse) for channel in light_colors[index])
+            pygame.draw.circle(self.screen, color, (x, stage_y - 8), 9)
+            pygame.draw.polygon(
+                self.screen,
+                tuple(max(30, channel - 55) for channel in color),
+                (
+                    (x - 7, stage_y),
+                    (x - 42, stage_y + 130),
+                    (x + 42, stage_y + 130),
+                    (x + 7, stage_y),
+                ),
+            )
+
+        people = [
+            (82, 265, (115, 145, 132)),
+            (140, 278, (198, 104, 76)),
+            (198, 260, (201, 168, 82)),
+            (256, 276, (115, 145, 132)),
+            (314, 258, (198, 104, 76)),
+            (372, 275, (201, 168, 82)),
+            (430, 262, (115, 145, 132)),
+            (488, 278, (198, 104, 76)),
+            (546, 260, (201, 168, 82)),
+            (604, 275, (115, 145, 132)),
+            (662, 258, (198, 104, 76)),
+            (720, 276, (201, 168, 82)),
+            (778, 260, (115, 145, 132)),
+        ]
+        for index, (x, y, shirt) in enumerate(people):
+            arm_up = math.sin(elapsed * 7.0 + index * 1.3) > -0.15
+            pygame.draw.circle(self.screen, (68, 48, 44), (x, y - 20), 10)
+            pygame.draw.rect(self.screen, shirt, (x - 13, y - 10, 26, 39), border_radius=7)
+            if arm_up:
+                arm_direction = -1 if index % 2 == 0 else 1
+                pygame.draw.line(
+                    self.screen,
+                    (68, 48, 44),
+                    (x + arm_direction * 11, y),
+                    (x + arm_direction * 24, y - 29),
+                    5,
+                )
+            else:
+                pygame.draw.line(
+                    self.screen,
+                    (68, 48, 44),
+                    (x - 11, y),
+                    (x - 27, y + 12),
+                    5,
+                )
+                pygame.draw.line(
+                    self.screen,
+                    (68, 48, 44),
+                    (x + 11, y),
+                    (x + 27, y + 12),
+                    5,
+                )
+
     def draw(self):
         self.screen.fill(BACKGROUND)
         pygame.draw.rect(self.screen, PANEL, (36, 126, 790, 610), border_radius=8)
         pygame.draw.rect(self.screen, PANEL_LIGHT, (56, 548, 750, 2))
+        self.draw_concert_crowd()
         self.screen.blit(self.title_font.render("DRUM TYCOON", True, TEXT), (42, 34))
         self.screen.blit(self.small_font.render("Zahraj. Vylepšuj. Vyraz na koncert.", True, MUTED), (46, 83))
 
