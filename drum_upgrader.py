@@ -99,6 +99,8 @@ class Drum:
             self.color if ready else (86, 96, 96)
         )
         shadow = (12, 17, 20)
+        visual_tier = min(5, self.level + self.speed_level)
+        level_ring_width = 3 + min(self.level, 4)
 
         if self.name == "Kopák":
             pygame.draw.ellipse(surface, shadow, self.hit_area.move(0, 12))
@@ -116,18 +118,29 @@ class Drum:
             shell = rect.inflate(12, 20)
             pygame.draw.ellipse(surface, (24, 29, 31), shell.move(0, 28))
             pygame.draw.ellipse(surface, color, shell)
-            pygame.draw.ellipse(surface, (238, 232, 210), shell, 5)
+            rim_color = (
+                (238, 232, 210),
+                (210, 225, 215),
+                (177, 210, 221),
+                (159, 193, 235),
+                (183, 169, 255),
+                (238, 180, 255),
+            )[visual_tier]
+            pygame.draw.ellipse(surface, rim_color, shell, level_ring_width)
 
             pygame.draw.ellipse(surface, shadow, rect.move(0, 8).inflate(4, 4))
-            pygame.draw.ellipse(surface, (226, 220, 196), rect.inflate(4, 2))
+            pygame.draw.ellipse(surface, rim_color, rect.inflate(4, 2))
             pygame.draw.ellipse(surface, color, rect)
             pygame.draw.ellipse(surface, (255, 248, 220), rect.inflate(-12, -10), 3)
 
-            for angle in range(0, 360, 45):
+            rivet_count = 8 + visual_tier * 2
+            for index in range(rivet_count):
+                angle = index * 360 / rivet_count
                 lx = int(cx + 78 * pygame.math.Vector2(1, 0).rotate(angle).x)
                 ly = int(cy + 35 * pygame.math.Vector2(1, 0).rotate(angle).y)
-                pygame.draw.circle(surface, (235, 231, 211), (lx, ly), 5)
-                pygame.draw.circle(surface, (55, 62, 62), (lx, ly), 5, 2)
+                rivet_radius = 4 + min(visual_tier, 3)
+                pygame.draw.circle(surface, rim_color, (lx, ly), rivet_radius)
+                pygame.draw.circle(surface, (55, 62, 62), (lx, ly), rivet_radius, 2)
 
             pygame.draw.line(surface, (190, 196, 188), (cx - 55, cy + 48),
                              (cx - 75, cy + 96), 7)
@@ -142,30 +155,54 @@ class Drum:
             pygame.draw.circle(surface, (255, 246, 210), (cx - 48, cy - 9), 4)
         else:
             center_x, center_y = self.hit_area.center
+            cymbal_colors = (
+                (201, 168, 82),
+                (220, 183, 92),
+                (231, 197, 102),
+                (246, 208, 112),
+                (255, 220, 125),
+                (255, 238, 170),
+            )
+            cymbal_gold = cymbal_colors[visual_tier]
             pygame.draw.ellipse(
                 surface,
                 (8, 12, 14),
                 self.hit_area.move(0, 14).inflate(18, 12),
             )
 
+            stand_width = 7 + min(self.level, 4)
             pygame.draw.line(surface, (56, 62, 63), (center_x, center_y + 18),
-                             (center_x, center_y + 128), 9)
-            pygame.draw.line(surface, (174, 184, 178), (center_x - 42, center_y + 128),
-                             (center_x + 42, center_y + 128), 8)
-            pygame.draw.line(surface, (174, 184, 178), (center_x - 42, center_y + 128),
-                             (center_x - 18, center_y + 82), 6)
-            pygame.draw.line(surface, (174, 184, 178), (center_x + 42, center_y + 128),
-                             (center_x + 18, center_y + 82), 6)
+                             (center_x, center_y + 128), stand_width)
+            pygame.draw.line(surface, cymbal_gold, (center_x - 42, center_y + 128),
+                             (center_x + 42, center_y + 128), stand_width)
+            pygame.draw.line(surface, cymbal_gold, (center_x - 42, center_y + 128),
+                             (center_x - 18, center_y + 82), stand_width - 1)
+            pygame.draw.line(surface, cymbal_gold, (center_x + 42, center_y + 128),
+                             (center_x + 18, center_y + 82), stand_width - 1)
 
             pygame.draw.line(surface, (220, 220, 197), (center_x, center_y + 12),
                              (center_x, center_y - 18), 5)
             pygame.draw.ellipse(surface, shadow, self.hit_area.move(0, 9).inflate(12, 8))
             pygame.draw.ellipse(surface, color, self.hit_area.inflate(8, 4))
-            pygame.draw.ellipse(surface, (255, 226, 139), self.hit_area.inflate(8, 4), 5)
+            pygame.draw.ellipse(
+                surface,
+                cymbal_gold,
+                self.hit_area.inflate(8, 4),
+                level_ring_width,
+            )
             pygame.draw.ellipse(surface, (255, 239, 166),
                                 self.hit_area.inflate(-18, -16), 3)
             pygame.draw.circle(surface, (255, 244, 186), (center_x, center_y), 9)
             pygame.draw.circle(surface, (92, 76, 48), (center_x, center_y), 9, 3)
+
+            for step in range(self.speed_level):
+                notch_x = center_x - 55 + step * 22
+                pygame.draw.circle(
+                    surface,
+                    cymbal_gold,
+                    (notch_x, center_y + 10),
+                    5,
+                )
 
             pygame.draw.arc(surface, (255, 250, 205),
                             self.hit_area.inflate(-12, -14),
@@ -179,6 +216,21 @@ class Drum:
             pygame.draw.circle(surface, ring_color,
                                (self.hit_area.centerx, self.hit_area.centery),
                                ring_radius, 3)
+
+        if self.name in ("Snare", "Činel"):
+            badge_y = self.hit_area.bottom + 7
+            start_x = self.hit_area.centerx - 40
+            for index in range(5):
+                pip_color = (
+                    (238, 180, 255) if self.name == "Snare"
+                    else (255, 220, 125)
+                ) if index < visual_tier else (73, 82, 82)
+                pygame.draw.circle(
+                    surface,
+                    pip_color,
+                    (start_x + index * 20, badge_y),
+                    4,
+                )
 
         label = font.render(self.name, True, TEXT)
         if ready:

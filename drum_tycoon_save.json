@@ -1,24 +1,24 @@
 {
-  "money": 160,
+  "money": 349,
   "drums": {
     "Snare": {
-      "level": 0,
-      "income": 2,
-      "upgrade_cost": 30,
+      "level": 2,
+      "income": 6,
+      "upgrade_cost": 82,
       "speed_level": 0,
       "speed_upgrade_cost": 54
     },
     "Kopák": {
-      "level": 0,
-      "income": 3,
-      "upgrade_cost": 40,
+      "level": 1,
+      "income": 6,
+      "upgrade_cost": 66,
       "speed_level": 0,
       "speed_upgrade_cost": 72
     },
     "Činel": {
-      "level": 0,
-      "income": 2,
-      "upgrade_cost": 35,
+      "level": 1,
+      "income": 4,
+      "upgrade_cost": 58,
       "speed_level": 0,
       "speed_upgrade_cost": 63
     }
